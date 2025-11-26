@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Zeytouna Bay — Boat Parking</title>
+
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    :root{--card-bg: rgba(255,255,255,0.12);--accent: #3FA7D6;--glass-border: rgba(255,255,255,0.08);--text: #ffffff;--success:#3bd671;--error:#ff6b6b;--info:#ffd166}
+    html,body{height:100%;margin:0;font-family:Inter,system-ui,Arial;background:linear-gradient(180deg,#0A2A43,#134E6F);color:var(--text);overflow:hidden}
+
+    /* HOMEPAGE */
+    #homeScreen{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px);z-index:20;background:linear-gradient(180deg,#0A2A43,#134E6F);opacity:1;transition:opacity .6s ease}
+    #homeBox{background:var(--card-bg);border:1px solid var(--glass-border);padding:40px 60px;border-radius:20px;backdrop-filter:blur(8px) saturate(140%);box-shadow:0 8px 30px rgba(0,0,0,0.35);text-align:center;animation:fadeUp 1s ease forwards;opacity:0}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+    #enterBtn{background:var(--accent);color:#fff;padding:12px 26px;border-radius:12px;border:none;font-size:16px;cursor:pointer;font-weight:600;transition:.25s;margin-top:12px}
+    #enterBtn:hover{transform:translateY(-3px);box-shadow:0 6px 20px rgba(0,0,0,0.25)}
+
+    /* APP */
+    #appContainer{display:none;height:100vh;opacity:0;transition:opacity .6s ease;position:relative}
+    #homeBtn{position:absolute;top:20px;right:20px;z-index:50;padding:10px 18px;border-radius:12px;background:var(--card-bg);border:1px solid var(--glass-border);backdrop-filter:blur(6px);cursor:pointer;color:white;font-weight:600;transition:.25s}
+    #homeBtn:hover{transform:translateY(-2px);background:rgba(255,255,255,0.18)}
+
+    #map{height:100%}
+
+    .app{position:relative;height:100vh;display:grid;grid-template-columns:1fr 360px;gap:20px;padding:24px;box-sizing:border-box;align-items:stretch}
+    .left{border-radius:16px;overflow:hidden;box-shadow:0 8px 30px rgba(0,0,0,0.4);border:1px solid var(--glass-border)}
+    .right{width:360px;min-width:260px;background:var(--card-bg);border-radius:16px;padding:20px;box-sizing:border-box;border:1px solid var(--glass-border);backdrop-filter:blur(6px) saturate(120%)}
+    h1{margin:0 0 8px 0;font-size:20px}
+    p.small{margin:0 0 14px 0;opacity:0.9}
+
+    .boat-btn{display:flex;gap:8px;flex-wrap:wrap}
+    .boat{padding:10px 12px;border-radius:10px;background:transparent;border:1px solid rgba(255,255,255,0.06);cursor:pointer;min-width:54px;text-align:center}
+    .boat.selected{background:var(--accent);color:#022;font-weight:700}
+
+    .controls{display:flex;gap:8px;margin-top:12px}
+    .btn{flex:1;padding:10px;border-radius:10px;background:var(--accent);border:none;color:#fff;cursor:pointer}
+    .list{margin-top:14px;max-height:34vh;overflow:auto}
+    .list-item{padding:8px;border-radius:8px;margin-bottom:8px;background:rgba(0,0,0,0.12)}
+
+    #deleteBtn{margin-top:10px;width:100%;padding:10px;border-radius:10px;background:#d63f3f;border:none;color:#fff;cursor:pointer;font-weight:600;transition:.25s}
+    #deleteBtn:hover{background:#c23636;transform:translateY(-2px)}
+
+    @media(max-width:900px){.app{grid-template-columns:1fr;grid-auto-rows:1fr}.right{width:auto}}
+
+    #barContainer{position:fixed;left:50%;transform:translateX(-50%);bottom:28px;z-index:9999;pointer-events:none;display:flex;flex-direction:column;align-items:center;gap:8px;width:100%;max-width:520px;padding:0 16px}
+    .bar{pointer-events:auto;width:450px;max-width:calc(100% - 32px);padding:12px 16px;border-radius:12px;background:rgba(0,0,0,0.55);color:white;font-weight:600;text-align:center;backdrop-filter:blur(8px);box-shadow:0 12px 30px rgba(0,0,0,0.45);transform:translateY(18px);opacity:0;transition:transform .28s cubic-bezier(.2,.9,.3,1), opacity .28s;border:1px solid rgba(255,255,255,0.04)}
+    .bar.show{transform:translateY(0);opacity:1}
+    .bar.success{border-left:6px solid var(--success)}
+    .bar.error{border-left:6px solid var(--error)}
+    .bar.info{border-left:6px solid var(--info)}
+    .bar small{display:block;font-weight:500;opacity:0.9;margin-top:6px;font-size:13px}
+
+    .field-row{display:flex;gap:8px;margin-top:12px}
+    .field-row input{padding:10px;border-radius:10px;border:none;min-width:0}
+    .email-input{flex:1}
+  </style>
+</head>
+<body>
+
+  <!-- HOMEPAGE -->
+  <div id="homeScreen">
+    <div id="homeBox">
+      <h1 style="font-size:32px;margin-bottom:6px;">Zeytouna Bay</h1>
+      <p style="opacity:0.85;margin-bottom:22px;">Boat Parking Reservation System</p>
+      <button id="enterBtn">Enter Parking System</button>
+    </div>
+  </div>
+
+  <!-- APP -->
+  <div id="appContainer">
+    <button id="homeBtn">← Home</button>
+
+    <div class="app">
+      <div class="left" id="map"></div>
+
+      <aside class="right">
+        <h1>Zeytouna Bay — Boat Parking</h1>
+        <p class="small">Top-down map. Selected slot shows on the right.</p>
+
+        <div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <label style="font-size:13px;opacity:0.9">Selected slot:</label>
+            <div id="selectedDisplay" style="margin-left:auto;font-weight:700">—</div>
+          </div>
+
+          <div class="boat-btn" id="boatButtons" style="margin-top:12px"></div>
+
+          <div class="controls">
+            <input id="nameInput" placeholder="Your name / License" style="flex:2;padding:10px;border-radius:10px;border:none;min-width:0" />
+          </div>
+
+          <div class="field-row">
+            <input id="emailInput" class="email-input" placeholder="Email for confirmation (you@domain.com)" />
+            <button class="btn" id="reserveBtn">Reserve</button>
+          </div>
+
+          <button id="deleteBtn">Clear My Reservation</button>
+
+          <div class="list" id="reservations"></div>
+
+          <p style="margin-top:12px;font-size:12px;opacity:0.85">Reservations are stored locally on your device.</p>
+        </div>
+      </aside>
+    </div>
+  </div>
+
+  <div id="barContainer" aria-live="polite" aria-atomic="true"></div>
+
+  <!-- EmailJS SDK -->
+  <script src="https://cdn.emailjs.com/dist/email.min.js"></script>
+  <script>
+    emailjs.init({
+      publicKey: "SGroeJmHCtd-ewxKm"
+    });
+  </script>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script>
+
+    /* ========== Snackbar ========== */
+    const barContainer = document.getElementById('barContainer');
+    function showBar(message, type = 'success', subtitle = '', duration = 3200) {
+      const bar = document.createElement('div');
+      bar.className = 'bar ' + (type || 'success');
+      bar.innerHTML = `${message}${subtitle?'<small>'+subtitle+'</small>':''}`;
+      barContainer.appendChild(bar);
+      requestAnimationFrame(()=>{ bar.classList.add('show'); });
+      const timer = setTimeout(()=> hideBar(bar), duration);
+      bar.addEventListener('click', ()=>{ clearTimeout(timer); hideBar(bar); });
+    }
+    function hideBar(el){ if(!el) return; el.classList.remove('show'); setTimeout(()=>{ if(el.parentNode) el.parentNode.removeChild(el); }, 260); }
+
+    /* ========== MAP LOGIC (UNTOUCHED) ========== */
+    const center = [33.90314, 35.49666];
+    const boatSlots = [
+      {id: 1, lat: 33.90340056835228, lng: 35.49710},
+      {id: 2, lat: 33.903262541316415, lng: 35.49700},
+      {id: 3, lat: 33.90267930069059,  lng: 35.49685},
+      {id: 4, lat: 33.90255470268104,  lng: 35.49670},
+      {id: 5, lat: 33.902456705518524, lng: 35.49650},
+      {id: 6, lat: 33.90232742405676,  lng: 35.49635},
+      {id: 7, lat: 33.90260800371729,  lng: 35.49588717393097},
+      {id: 8, lat: 33.90248778501193,  lng: 35.49569939217022}
+    ];
+
+    const map = L.map('map', { zoomControl: true });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
+
+    function boatIcon(number, selected){
+      const size = selected ? 44 : 34;
+      const fill = selected ? '#FFFFFF' : '#3FA7D6';
+      const textColor = selected ? '#3A3A3A' : '#fff';
+      const svg = `data:image/svg+xml;utf8,` + encodeURIComponent(`
+        <svg xmlns='http://www.w3.org/2000/svg' width='${size}' height='${size}' viewBox='0 0 64 64'>
+          <ellipse cx='32' cy='36' rx='24' ry='10' fill='${fill}' opacity='0.95'/>
+          <rect x='16' y='8' width='32' height='26' rx='8' ry='8' fill='${fill}' />
+          <text x='32' y='38' font-size='22' text-anchor='middle' fill='${textColor}' font-family='Arial' font-weight='700'>${number}</text>
+        </svg>
+      `);
+      return L.icon({iconUrl: svg, iconSize: [size,size], iconAnchor: [size/2,size/2]});
+    }
+
+    let reservations = JSON.parse(localStorage.getItem('zeytuna_reservations') || '[]');
+    let selected = null;
+
+    const boatButtons = document.getElementById('boatButtons');
+    function renderButtons(){
+      boatButtons.innerHTML = '';
+      boatSlots.forEach(s=>{
+        const btn = document.createElement('div');
+        btn.className = 'boat';
+        if(reservations.find(r=>r.slot===s.id)) btn.style.opacity = 0.55;
+        if(selected === s.id) btn.classList.add('selected');
+        btn.textContent = s.id;
+        btn.onclick = ()=>{ selected = s.id; map.panTo([s.lat, s.lng]); updateSelectedDisplay(); updateMarkers(); renderButtons(); };
+        boatButtons.appendChild(btn);
+      });
+    }
+
+    let markers = [];
+    function updateMarkers(){
+      markers.forEach(m=>map.removeLayer(m));
+      markers = [];
+      boatSlots.forEach(s=>{
+        const taken = reservations.find(r=>r.slot===s.id);
+        const icon = boatIcon(s.id, selected === s.id);
+        const marker = L.marker([s.lat, s.lng], {icon}).addTo(map);
+        marker.on('click', ()=>{ selected = s.id; updateSelectedDisplay(); renderButtons(); });
+        marker.bindPopup(`<div style="min-width:140px"><strong>Slot #${s.id}</strong><br/>${taken?`Taken by <em>${taken.name}</em><br/><small>${taken.email || ''}</small>`:'Available'}</div>`);
+        markers.push(marker);
+      });
+    }
+
+    function updateSelectedDisplay(){
+      document.getElementById('selectedDisplay').textContent = selected ? `#${selected}` : '—';
+    }
+
+    function renderReservations(){
+      const list = document.getElementById('reservations');
+      list.innerHTML = '';
+      if(reservations.length === 0){
+        list.innerHTML = '<div style="opacity:0.75">No reservations yet.</div>';
+        return;
+      }
+      reservations.forEach(r=>{
+        const item = document.createElement('div'); 
+        item.className = 'list-item';
+        item.innerHTML = `<strong>Slot #${r.slot}</strong> — ${r.name}
+          <div style="font-size:12px;opacity:0.8">
+            ${r.email ? r.email + ' — ' : ''}${new Date(r.time).toLocaleString()}
+          </div>`;
+        list.appendChild(item);
+      });
+    }
+
+    function validEmail(e){ return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e); }
+
+    const EMAILJS_SERVICE = 'service_kg4sd4r';
+    const EMAILJS_TEMPLATE = 'template_ibxtaau';
+
+    function sendConfirmationEmail(toEmail, name, slot){
+      if(!toEmail) return Promise.reject(new Error('No email'));
+      const templateParams = {
+        to_email: toEmail,
+        user_name: name,
+        slot_number: slot,
+        reserved_time: new Date().toLocaleString(),
+        site_name: 'Zeytouna Bay Boat Parking'
+      };
+      return emailjs.send(EMAILJS_SERVICE, EMAILJS_TEMPLATE, templateParams);
+    }
+
+    document.getElementById('reserveBtn').addEventListener('click', ()=>{
+      const name = document.getElementById('nameInput').value.trim();
+      const email = document.getElementById('emailInput').value.trim();
+
+      if(!selected){ showBar('Select a slot first', 'error'); return; }
+      if(!name){ showBar('Enter a name or license', 'error'); return; }
+      if(!email || !validEmail(email)){ showBar('Enter a valid email address', 'error'); return; }
+      if(reservations.find(r=>r.slot===selected)){ showBar('This slot is already reserved', 'error'); return; }
+
+      const rec = { slot: selected, name, email, time: Date.now() };
+      reservations.push(rec);
+      localStorage.setItem('zeytuna_reservations', JSON.stringify(reservations));
+      renderReservations(); renderButtons(); updateMarkers();
+
+      document.getElementById('nameInput').value = '';
+      document.getElementById('emailInput').value = '';
+      showBar(`Reserved slot #${selected}`, 'success');
+
+      sendConfirmationEmail(rec.email, rec.name, rec.slot)
+        .then(()=> showBar(`Confirmation email sent to ${rec.email}`, 'success'))
+        .catch(err=> { console.error('EmailJS error', err); showBar('Could not send confirmation email', 'error'); });
+    });
+
+    document.getElementById('deleteBtn').addEventListener('click', ()=>{
+      const name = document.getElementById('nameInput').value.trim();
+      const email = document.getElementById('emailInput').value.trim();
+      if(!name || !email){ showBar('Enter the same name and email used to reserve', 'error'); return; }
+
+      const before = reservations.length;
+      reservations = reservations.filter(r => !(r.name === name && r.email === email));
+      if(reservations.length === before){ showBar('No reservation found for that name + email', 'info'); return; }
+
+      localStorage.setItem('zeytuna_reservations', JSON.stringify(reservations));
+      renderReservations(); renderButtons(); updateMarkers();
+      showBar('Your reservation was removed.', 'success');
+    });
+
+    document.getElementById('homeBtn').addEventListener('click', ()=>{
+      const home = document.getElementById('homeScreen');
+      const app = document.getElementById('appContainer');
+      app.style.opacity = '0';
+      setTimeout(()=>{ app.style.display = 'none'; home.style.display = 'flex'; home.style.opacity = '1'; }, 600);
+    });
+
+    document.getElementById('enterBtn').addEventListener('click', ()=>{
+      const home = document.getElementById('homeScreen');
+      const app = document.getElementById('appContainer');
+      home.style.opacity = '0';
+      setTimeout(()=>{
+        home.style.display = 'none'; 
+        app.style.display = 'block'; 
+        setTimeout(()=>{ app.style.opacity = '1'; }, 50);
+        setTimeout(()=>{ map.invalidateSize(); map.setView(center, 18); }, 200);
+      }, 600);
+    });
+
+    renderButtons(); 
+    updateMarkers(); 
+    renderReservations(); 
+    updateSelectedDisplay();
+
+    const bounds = L.latLngBounds(boatSlots.map(s=>[s.lat,s.lng]));
+    map.fitBounds(bounds.pad(0.6));
+
+  </script>
+</body>
+</html>
